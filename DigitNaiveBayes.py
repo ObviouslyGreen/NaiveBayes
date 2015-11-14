@@ -48,10 +48,14 @@ class DigitNaiveBayes:
                     for col in range(self.size):
                         if img_row[col] ==  ' ':
                             self.model[curr_num][row][col][0] += 1
-                        elif img_row[col] == '+':
-                            self.model[curr_num][row][col][1] += 1
-                        elif img_row[col] == '#':
-                            self.model[curr_num][row][col][2] += 1
+                        if self.num_features == 3:
+                            if img_row[col] == '+':
+                                self.model[curr_num][row][col][1] += 1
+                            elif img_row[col] == '#':
+                                self.model[curr_num][row][col][2] += 1
+                        else:
+                            if img_row[col] in ['+', '#']:
+                                self.model[curr_num][row][col][1] += 1
 
         for num in range(self.num_classes):
             for row in range(self.size):
@@ -88,17 +92,21 @@ class DigitNaiveBayes:
                     for col in range(self.size):
                         if test_images[n][row][col] == ' ':
                             map_classifier[num] += math.log(self.model[num][row][col][0])
-                        elif test_images[n][row][col] == '+':
-                            map_classifier[num] += math.log(self.model[num][row][col][1])
-                        elif test_images[n][row][col] == '#':
-                            map_classifier[num] += math.log(self.model[num][row][col][2])
+                        if self.num_features == 3:
+                            if test_images[n][row][col] == '+':
+                                map_classifier[num] += math.log(self.model[num][row][col][1])
+                            elif test_images[n][row][col] == '#':
+                                map_classifier[num] += math.log(self.model[num][row][col][2])
+                        else:
+                            if test_images[n][row][col] in ['+', '#']:
+                                map_classifier[num] += math.log(self.model[num][row][col][1])
             predicted_labels.append(np.argmax(map_classifier))
 
         correct_labels = np.array(correct_labels)
         predicted_labels = np.array(predicted_labels)
         num_mispredict = np.count_nonzero(correct_labels - predicted_labels)
-        accuracy = (num_images - num_mispredict) / num_images
-        logger.info('Model is {0:.2f}%% accurate with k = {1}'.format(accuracy, self.k))
+        accuracy = 100 * (num_images - num_mispredict) / num_images
+        logger.info('Model is {0:.2f}% accurate with k = {1}'.format(accuracy, self.k))
 
 
 def main():
@@ -108,7 +116,7 @@ def main():
     parser.add_argument('-f', '--num_features', type=int)
     args = parser.parse_args()
 
-    dnb = DigitNaiveBayes(args.runmode, args.num_features, args.k)
+    dnb = DigitNaiveBayes(args.runmode, 2, args.k)
     dnb.train()
     dnb.predict()
 
