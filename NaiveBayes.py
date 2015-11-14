@@ -10,13 +10,14 @@ SIZE = 28
 DATA_DIR = './data'
 
 
-class NaiveBayes:
+class DigitNaiveBayes:
 
     def __init__(self):
         # Model of 10 digits
         # Digits are images with values ' ', '+', or '#'
         self.model = np.zeros((10, SIZE, SIZE, 3))
         self.num_count = np.zeros(10)
+        self.map_classifier = np.zeros(10)
 
 
     def train(self, k):
@@ -40,9 +41,14 @@ class NaiveBayes:
                     self.model[num][row][col] += k
                     self.model[num][row][col] /= (self.num_count[num] + 3 * k)
 
+        for num in range(10):
+            for row in range(SIZE):
+                for col in range(SIZE):
+
+
 def main():
-    nb = NaiveBayes()
-    nb.train(25)
+    dnb = DigitNaiveBayes()
+    dnb.train(25)
 
 
 
