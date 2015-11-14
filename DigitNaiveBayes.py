@@ -1,12 +1,15 @@
 import argparse
 import logging
 import math
+import matplotlib.pyplot as plt
 import numpy as np
+import time
+
+from evaluation import calc_accuracy, confusion_matrix
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 DATA_DIR = './data'
 
@@ -39,6 +42,8 @@ class DigitNaiveBayes:
         if num_features:
             self.num_features = num_features
 
+        start_time = time.time()
+
         with open(training_label_path) as f0, open(training_images_path) as f1:
             for line in f0:
                 curr_num = int(line)
@@ -62,6 +67,9 @@ class DigitNaiveBayes:
                 for col in range(self.size):
                     self.model[num][row][col] += self.k
                     self.model[num][row][col] /= (self.num_counts[num] + 3 * self.k)
+
+        logger.info('Finished training.')
+        logger.info('Training took {0:.2f} seconds'.format(time.time() - start_time))
 
     def predict(self):
         if self.runmode == 'digits':
@@ -104,9 +112,24 @@ class DigitNaiveBayes:
 
         correct_labels = np.array(correct_labels)
         predicted_labels = np.array(predicted_labels)
-        num_mispredict = np.count_nonzero(correct_labels - predicted_labels)
-        accuracy = 100 * (num_images - num_mispredict) / num_images
-        logger.info('Model is {0:.2f}% accurate with k = {1}'.format(accuracy, self.k))
+        accuracy = calc_accuracy(correct_labels, predicted_labels)
+        logger.info('NB model is {0:.2f}% accurate on the {1} data with k = {2}.'.format(accuracy, self.runmode, self.k))
+
+        cm = confusion_matrix(correct_labels, predicted_labels, self.num_classes)
+
+        class_accuracies = [cm[n][n] for n in range(self.num_classes)]
+        max_n = np.argmax(np.array(class_accuracies))
+        min_n = np.argmin(np.array(class_accuracies))
+        logger.info('Class {0} has the highest posterior probability with an accuracy of {1:.2f}%.'.format(max_n, 100 * cm[max_n][max_n]))
+        logger.info('Class {0} has the highest posterior probability with an accuracy of {1:.2f}%.'.format(min_n, 100 * cm[min_n][min_n]))
+
+        plt.figure()
+        plt.imshow(cm, cmap=plt.get_cmap('Greens'), interpolation='nearest')
+        plt.xticks(np.arange(10))
+        plt.yticks(np.arange(10))
+        plt.xlabel('Predictions')
+        plt.ylabel('Truths')
+        plt.show()
 
 
 def main():
