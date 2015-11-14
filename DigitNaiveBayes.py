@@ -1,8 +1,10 @@
 import argparse
+import heapq
 import logging
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import operator
 import time
 
 from evaluation import calc_accuracy, confusion_matrix
@@ -116,8 +118,8 @@ class DigitNaiveBayes:
         logger.info('NB model is {0:.2f}% accurate on the {1} data with k = {2}.'.format(accuracy, self.runmode, self.k))
 
         cm = confusion_matrix(correct_labels, predicted_labels, self.num_classes)
-
         class_accuracies = [cm[n][n] for n in range(self.num_classes)]
+
         max_n = np.argmax(np.array(class_accuracies))
         min_n = np.argmin(np.array(class_accuracies))
         logger.info('Class {0} has the highest posterior probability with an accuracy of {1:.2f}%.'.format(max_n, 100 * cm[max_n][max_n]))
@@ -129,7 +131,24 @@ class DigitNaiveBayes:
         plt.yticks(np.arange(10))
         plt.xlabel('Predictions')
         plt.ylabel('Truths')
-        plt.show()
+        #plt.show()
+
+        cm_ravel = np.ravel(cm)
+        least_accurate_pairs = cm_ravel.argsort()[:4]
+        least_accurate_pairs = [(x % self.num_classes, math.floor(x / self.num_classes)) for x in least_accurate_pairs]
+
+        #for x, y in least_accurate_pairs:
+        feature_likelihood = np.zeros((self.size, self.size))
+        for x in range(self.size):
+            for y in range(self.size):
+                feature_likelihood[y][x] = math.log(self.model[0][y][x][1])
+        if self.num_features == 2:
+            plt.figure()
+            plt.imshow(feature_likelihood, interpolation='nearest')
+            plt.xticks([])
+            plt.yticks([])
+            plt.colorbar()
+            plt.show()
 
 
 def main():
@@ -139,7 +158,7 @@ def main():
     parser.add_argument('-f', '--num_features', type=int)
     args = parser.parse_args()
 
-    dnb = DigitNaiveBayes(args.runmode, 2, args.k)
+    dnb = DigitNaiveBayes(args.runmode, args.num_features, args.k)
     dnb.train()
     dnb.predict()
 
