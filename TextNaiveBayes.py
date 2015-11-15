@@ -121,10 +121,11 @@ class TextNaiveBayes:
 
         plt.figure()
         plt.imshow(cm, cmap=plt.get_cmap('Greens'), interpolation='nearest')
-        plt.xticks(np.arange(1))
-        plt.yticks(np.arange(1))
+        plt.xticks(np.arange(self.num_classes), self.class_names)
+        plt.yticks(np.arange(self.num_classes), self.class_names)
         plt.xlabel('Predictions')
         plt.ylabel('Truths')
+        plt.colorbar()
         plt.show()
 
 
