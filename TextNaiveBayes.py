@@ -2,9 +2,9 @@ import argparse
 import logging
 import numpy as np
 import math
+import heapq
 import matplotlib.pyplot as plt
 
-from collections import Counter
 from evaluation import calc_accuracy, confusion_matrix
 
 logging.basicConfig(level=logging.INFO)
@@ -30,10 +30,19 @@ class TextNaiveBayes:
             self.num_classes = 2
             self.train_file = '/rt-train.txt'
             self.test_file = '/rt-test.txt'
+        elif type == '8_newsgroups':
+            self.type = 2
+            self.classes = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7}
+            self.class_names = ['sci.space', 'comp.sys.ibm.pc.hardware', 'rec.sport.baseball',
+                                'comp.windows.x', 'talk.politics.misc', 'misc.forsale',
+                                'rec.sport.hockey', 'comp.graphics']
+            self.num_classes = 8
+            self.train_file = '/8category.training.txt'
+            self.test_file = '/8category.testing.txt'
 
         self.runmode = runmode
         self.k = k
-        self.model = [{}, {}]
+        self.model = {}
         self.word_counts = [0] * len(self.classes)
         self.doc_counts = np.zeros(self.num_classes)
 
@@ -44,39 +53,37 @@ class TextNaiveBayes:
                 model_class = self.classes[doc[0]]
                 for x in doc[1:]:
                     x = x.split(':')
-                    if x[0] in self.model[model_class]:
+
+                    # Increment if in vocabulary
+                    if x[0] in self.model:
                         if(self.runmode == 'multinomial'):
-                            self.model[model_class][x[0]] += int(x[1])
+                            self.model[x[0]][model_class] += int(x[1])
                         elif(self.runmode == 'bernoulli'):
-                            self.model[model_class][x[0]] += 1
+                            self.model[x[0]][model_class] += 1
+                    # Initialize list and count for new word in vocabulary
                     else:
                         if(self.runmode == 'multinomial'):
-                            self.model[model_class][x[0]] = int(x[1])
+                            self.model[x[0]] = [0] * self.num_classes
+                            self.model[x[0]][model_class] = int(x[1])
                         elif self.runmode == 'bernoulli':
-                            self.model[model_class][x[0]] = 1
-                    for i in range(len(self.classes)):
-                        if(i == model_class):
-                            continue
-                        if x[0] not in self.model[i]:
-                            self.model[i][x[0]] = 0
+                            self.model[x[0]] = [0] * self.num_classes
+                            self.model[x[0]][model_class] = 1
 
                     self.word_counts[model_class] += int(x[1])
                 self.doc_counts[model_class] += 1
 
-        for x in range(len(self.classes)):
-            for word in self.model[x]:
-                self.model[x][word] += self.k
+        for word in self.model:
+            for x in range(self.num_classes):
+                self.model[word][x] += self.k
                 if(self.runmode == 'multinomial'):
-                    self.model[x][word] /= (self.word_counts[x] + len(self.model[x]) * self.k)
+                    self.model[word][x] /= (self.word_counts[x] + len(self.model) * self.k)
                 elif(self.runmode == 'bernoulli'):
-                    self.model[x][word] /= (self.doc_counts[x] + 2 * x)
+                    self.model[word][x] /= (self.doc_counts[x] + 2 * self.k)
 
         for model_class in range(self.num_classes):
-            top_20 = []
-            count = Counter(self.model[model_class])
-            for word in count.most_common(20):
-                top_20.append(word[0])
-            logger.info('Top 20 words for class {0} are {1}'.format(self.class_names[model_class], top_20))
+            top_20 = heapq.nlargest(20, self.model.items(), lambda k: k[1][model_class])
+            logger.info('Top 20 words for class {0} are {1}'.
+                        format(self.class_names[model_class], [word[0] for word in top_20]))
 
     def predict(self):
         correct_labels = []
@@ -89,22 +96,21 @@ class TextNaiveBayes:
                 map_classifier = np.zeros(self.num_classes)
                 for model_class in range(self.num_classes):
                     map_classifier[model_class] = np.array(
-                        [math.log(self.doc_counts[model_class]/np.sum(self.doc_counts))])
+                        [math.log(float(self.doc_counts[model_class]/np.sum(self.doc_counts)))])
                     if self.runmode == 'multinomial':
                         for word in doc[1:]:
                             word = word.split(':')
-                            if word[0] in self.model[model_class]:
-                                map_classifier[model_class] += math.log(self.model[model_class][word[0]])
+                            if word[0] in self.model:
+                                map_classifier[model_class] += math.log(self.model[word[0]][model_class])
                     elif self.runmode == 'bernoulli':
                         words = [word.split(':')[0] for word in doc[1:]]
-                        for word in self.model[model_class]:
+                        for word in self.model:
                             if word in words:
-                                map_classifier[model_class] += math.log(self.model[model_class][word])
+                                map_classifier[model_class] += math.log(self.model[word][model_class])
                             else:
-                                map_classifier[model_class] += math.log(1. - self.model[model_class][word])
+                                map_classifier[model_class] += math.log(1. - self.model[word][model_class])
                 predicted_labels.append(np.argmax(map_classifier))
 
-        logger.info((predicted_labels))
         correct_labels = np.array(correct_labels)
         predicted_labels = np.array(predicted_labels)
         accuracy = calc_accuracy(correct_labels, predicted_labels)
@@ -127,11 +133,12 @@ def main():
                                                     for CS 440 by
                                                     Shibo Yao, Mike Chen,
                                                     and Jeff Zhu''')
-    parser.add_argument('document_type', help='''Choose a type: spam_detection, movie_reviews''')
+    parser.add_argument('document_type', help='''Choose a type: spam_detection, movie_reviews, 8_newsgroups''')
     parser.add_argument('runmode', help='''Choose a runmode: multinomial, bernoulli''')
+    parser.add_argument('k_value', help='''Choose a k value for Laplacian smoothing''')
     args = parser.parse_args()
 
-    tnb = TextNaiveBayes(args.document_type, args.runmode, 1)
+    tnb = TextNaiveBayes(args.document_type, args.runmode, int(args.k_value))
     tnb.train()
     tnb.predict()
 
