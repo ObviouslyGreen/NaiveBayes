@@ -80,7 +80,7 @@ class DigitNaiveBayes:
             for x in range(self.col):
                 for y in range(self.row):
                     self.model[num][y][x] += self.k
-                    self.model[num][y][x] /= (self.num_counts[num] + 3 * self.k)
+                    self.model[num][y][x] /= (self.num_counts[num] + self.num_features * self.k)
 
         logger.info('Finished training in {0:.2f} seconds'.format(time.time() - start_time))
 
@@ -236,8 +236,6 @@ def main():
     parser.add_argument('-f', '--num_features', type=int)
     args = parser.parse_args()
 
-    # k = 1 for best accuracy on digits
-    # k = 8 or 9 for best accuracy on faces
     dnb = DigitNaiveBayes(args.runmode, args.num_features, args.k)
     if args.k:
         dnb.train()
