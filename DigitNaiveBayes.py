@@ -30,11 +30,11 @@ class DigitNaiveBayes:
             self.row = 70
         else:
             raise ValueError('Invalid runmode.')
-        if num_features == 2 or (num_features == 3 and self.runmode == 'digits'):
+        if not num_features or num_features == 2 or (num_features == 3 and self.runmode == 'digits'):
             self.num_features = num_features
         else:
             raise ValueError('Invalid number of features.')
-        if 1 <= k <= 50:
+        if not k or 1 <= k <= 50:
             self.k = k
         else:
             raise ValueError('Invalid smoothing number.')
@@ -51,8 +51,10 @@ class DigitNaiveBayes:
             training_images_path = DATA_DIR + '/facedatatrain'
         if k:
             self.k = k
+            self.num_counts = np.zeros(self.num_classes)
         if num_features:
             self.num_features = num_features
+            self.num_counts = np.zeros(self.num_classes)
 
         start_time = time.time()
 
@@ -80,10 +82,9 @@ class DigitNaiveBayes:
                     self.model[num][y][x] += self.k
                     self.model[num][y][x] /= (self.num_counts[num] + 3 * self.k)
 
-        logger.info('Finished training.')
-        logger.info('Training took {0:.2f} seconds'.format(time.time() - start_time))
+        logger.info('Finished training in {0:.2f} seconds'.format(time.time() - start_time))
 
-    def predict(self):
+    def predict(self, info=True):
         if self.runmode == 'digits':
             test_label_path = DATA_DIR + '/testlabels'
             test_images_path = DATA_DIR + '/testimages'
@@ -123,65 +124,110 @@ class DigitNaiveBayes:
                         else:
                             if test_images[n][y][x] in ['+', '#']:
                                 map_classifier[num] += math.log(self.model[num][y][x][1])
-            predicted_labels.append(np.argmax(map_classifier))
+            predicted_label = np.argmax(map_classifier)
+            predicted_labels.append((predicted_label, map_classifier[predicted_label], n))
 
-        correct_labels = np.array(correct_labels)
-        predicted_labels = np.array(predicted_labels)
-        accuracy = calc_accuracy(correct_labels, predicted_labels)
+        truths = np.array(correct_labels)
+        predictions = np.array([x[0] for x in predicted_labels])
+        accuracy = calc_accuracy(truths, predictions)
         logger.info('NB model is {0:.2f}% accurate on the {1} data with k = {2}.'.format(accuracy, self.runmode, self.k))
 
-        cm = confusion_matrix(correct_labels, predicted_labels, self.num_classes)
-        class_accuracies = [cm[n][n] for n in range(self.num_classes)]
+        if info:
+            cm = confusion_matrix(truths, predictions, self.num_classes)
+            class_accuracies = [cm[n][n] for n in range(self.num_classes)]
+            # Class accuracies
+            for n, x in enumerate(class_accuracies):
+                logger.info('Class {0} has an accuracy of {1:.2f}%'.format(n, x))
 
-        max_n = np.argmax(np.array(class_accuracies))
-        min_n = np.argmin(np.array(class_accuracies))
-        logger.info('Class {0} has the highest posterior probability with an accuracy of {1:.2f}%.'.format(max_n, 100 * cm[max_n][max_n]))
-        logger.info('Class {0} has the highest posterior probability with an accuracy of {1:.2f}%.'.format(min_n, 100 * cm[min_n][min_n]))
+            # Confusion matrix
+            plt.figure()
+            plt.imshow(cm, cmap=plt.get_cmap('Greens'), interpolation='nearest')
+            plt.title('Confusion Matrix')
+            plt.xticks(np.arange(self.num_classes))
+            plt.yticks(np.arange(self.num_classes))
+            plt.xlabel('Predictions')
+            plt.ylabel('Truths')
 
-        plt.figure()
-        plt.imshow(cm, cmap=plt.get_cmap('Greens'), interpolation='nearest')
-        plt.title('Confusion Matrix')
-        plt.xticks(np.arange(self.num_classes))
-        plt.yticks(np.arange(self.num_classes))
-        plt.xlabel('Predictions')
-        plt.ylabel('Truths')
+            # Test images with the highest and lowest posterior probability
+            # Sorts from lowest to highest by class, then by posterior probability
+            sorted_predictions = sorted(predicted_labels)
+            class_indices = []
+            for x in range(len(sorted_predictions)):
+                if sorted_predictions[x][0] != sorted_predictions[x-1][0]:
+                    class_indices.append(x)
 
-        cm_ravel = np.ravel(cm)
-        least_accurate_pairs = cm_ravel.argsort()[:4]
-        least_accurate_pairs = [(x % self.num_classes, math.floor(x / self.num_classes)) for x in least_accurate_pairs]
-
-        if self.num_features == 2 and self.runmode == 'digits':
-            for i, j in least_accurate_pairs:
-                log_likelihood_one = np.zeros((self.col, self.row))
-                log_likelihood_two = np.zeros((self.col, self.row))
-                odds_ratio = np.zeros((self.col, self.row))
-                for y in range(self.row):
-                    for x in range(self.col):
-                        log_likelihood_one[y][x] = math.log(self.model[i][y][x][1])
-                        log_likelihood_two[y][x] = math.log(self.model[j][y][x][1])
-                        odds_ratio[y][x] = math.log(self.model[i][y][x][1] / self.model[j][y][x][1])
-
+            for x in range(len(class_indices)):
+                curr_class = sorted_predictions[class_indices[x]][0]
+                lowest_idex = sorted_predictions[class_indices[x]][2]
+                try:
+                    highest_idx = sorted_predictions[class_indices[x+1]-1][2]
+                except IndexError:
+                    highest_idx = sorted_predictions[len(sorted_predictions)-1][2]
+                best_test_image = [[0 if x in ['#', '+'] else 1 for x in y] for y in test_images[highest_idx]]
+                worst_test_image = [[0 if x in ['#', '+'] else 1 for x in y] for y in test_images[lowest_idex]]
                 plt.figure()
-                plt.subplot(1, 3, 1)
-                plt.imshow(log_likelihood_one, interpolation='nearest')
-                plt.title('Log likelihood of {0}'.format(i))
+                plt.suptitle('Class {0}'.format(curr_class))
+                plt.subplot(1, 2, 1)
+                plt.imshow(best_test_image, cmap=plt.get_cmap('Greys_r'))
+                plt.title('Highest')
                 plt.xticks([])
                 plt.yticks([])
-                plt.colorbar()
-                plt.subplot(1, 3, 2)
-                plt.imshow(log_likelihood_two, interpolation='nearest')
-                plt.title('Log likelihood of {0}'.format(j))
+                plt.subplot(1, 2, 2)
+                plt.title('Lowest')
                 plt.xticks([])
                 plt.yticks([])
-                plt.colorbar()
-                plt.subplot(1, 3, 3)
-                plt.imshow(odds_ratio, interpolation='nearest')
-                plt.title('Odds ratio between {0} and {1}'.format(i, j))
-                plt.xticks([])
-                plt.yticks([])
-                plt.colorbar()
+                plt.imshow(worst_test_image, cmap=plt.get_cmap('Greys_r'))
 
-        plt.show()
+            # Odds ratio for the four worst classes
+            cm_ravel = np.ravel(cm)
+            least_accurate_pairs = cm_ravel.argsort()[:4]
+            least_accurate_pairs = [(x % self.num_classes, math.floor(x / self.num_classes)) for x in least_accurate_pairs]
+
+            if self.num_features == 2 and self.runmode == 'digits':
+                for i, j in least_accurate_pairs:
+                    log_likelihood_one = np.zeros((self.col, self.row))
+                    log_likelihood_two = np.zeros((self.col, self.row))
+                    odds_ratio = np.zeros((self.col, self.row))
+                    for y in range(self.row):
+                        for x in range(self.col):
+                            log_likelihood_one[y][x] = math.log(self.model[i][y][x][1])
+                            log_likelihood_two[y][x] = math.log(self.model[j][y][x][1])
+                            odds_ratio[y][x] = math.log(self.model[i][y][x][1] / self.model[j][y][x][1])
+
+                    plt.figure()
+                    plt.subplot(1, 3, 1)
+                    plt.imshow(log_likelihood_one, interpolation='nearest')
+                    plt.title('Likelihood of {0}'.format(i))
+                    plt.xticks([])
+                    plt.yticks([])
+                    cbar = plt.colorbar(shrink=0.35)
+                    cbar.set_ticks(np.arange(np.amin(log_likelihood_one), np.amax(log_likelihood_one), step=2, dtype=np.int8))
+                    for t in cbar.ax.get_yticklabels():
+                        t.set_horizontalalignment('right')
+                        t.set_x(4)
+                    plt.subplot(1, 3, 2)
+                    plt.imshow(log_likelihood_two, interpolation='nearest')
+                    plt.title('Likelihood of {0}'.format(j))
+                    plt.xticks([])
+                    plt.yticks([])
+                    cbar = plt.colorbar(shrink=0.35)
+                    cbar.set_ticks(np.arange(np.amin(log_likelihood_two), np.amax(log_likelihood_two), step=2, dtype=np.int8))
+                    for t in cbar.ax.get_yticklabels():
+                        t.set_horizontalalignment('right')
+                        t.set_x(4)
+                    plt.subplot(1, 3, 3)
+                    plt.imshow(odds_ratio, interpolation='nearest')
+                    plt.title('Odds ratio')
+                    plt.xticks([])
+                    plt.yticks([])
+                    cbar = plt.colorbar(shrink=0.35)
+                    cbar.set_ticks(np.arange(np.amin(odds_ratio), np.amax(odds_ratio), step=2, dtype=np.int8))
+                    for t in cbar.ax.get_yticklabels():
+                        t.set_horizontalalignment('right')
+                        t.set_x(4)
+
+            plt.show()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -190,9 +236,16 @@ def main():
     parser.add_argument('-f', '--num_features', type=int)
     args = parser.parse_args()
 
+    # k = 1 for best accuracy on digits
+    # k = 8 or 9 for best accuracy on faces
     dnb = DigitNaiveBayes(args.runmode, args.num_features, args.k)
-    dnb.train()
-    dnb.predict()
+    if args.k:
+        dnb.train()
+        dnb.predict()
+    else:
+        for x in range(1, 51):
+            dnb.train(k=x)
+            dnb.predict(info=False)
 
 
 if __name__ == '__main__':
