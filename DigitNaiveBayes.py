@@ -51,9 +51,11 @@ class DigitNaiveBayes:
             training_images_path = DATA_DIR + '/facedatatrain'
         if k:
             self.k = k
+            self.model = np.zeros((self.num_classes, self.row, self.col, self.num_features))
             self.num_counts = np.zeros(self.num_classes)
         if num_features:
             self.num_features = num_features
+            self.model = np.zeros((self.num_classes, self.row, self.col, self.num_features))
             self.num_counts = np.zeros(self.num_classes)
 
         start_time = time.time()
@@ -137,7 +139,7 @@ class DigitNaiveBayes:
             class_accuracies = [cm[n][n] for n in range(self.num_classes)]
             # Class accuracies
             for n, x in enumerate(class_accuracies):
-                logger.info('Class {0} has an accuracy of {1:.2f}%'.format(n, x))
+                logger.info('Class {0} has an accuracy of {1:.2f}%'.format(n, 100 * x))
 
             # Confusion matrix
             plt.figure()
