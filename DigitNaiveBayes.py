@@ -53,10 +53,14 @@ class DigitNaiveBayes:
             self.k = k
             self.model = np.zeros((self.num_classes, self.row, self.col, self.num_features))
             self.num_counts = np.zeros(self.num_classes)
+        elif not self.k:
+            raise ValueError('Please provide a smoothing factor.')
         if num_features:
             self.num_features = num_features
             self.model = np.zeros((self.num_classes, self.row, self.col, self.num_features))
             self.num_counts = np.zeros(self.num_classes)
+        elif not self.num_features:
+            raise ValueError('Please provide a number of features')
 
         start_time = time.time()
 
