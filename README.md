@@ -15,7 +15,7 @@ optional arguments:
 *  -f NUM_FEATURES, --num_features: (2 or 3)  
   
   
-#### usage: TextNaiveBayes.py [-h] document_type [-k K] runmode
+#### usage: TextNaiveBayes.py [-h] document_type runmode [-k K] 
   
 positional arguments:  
 *  document_type: Choose a type: spam_detection, movie_reviews, 8_newsgroups  
