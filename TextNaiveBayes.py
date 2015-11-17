@@ -15,7 +15,7 @@ DATA_DIR = './data'
 class TextNaiveBayes:
 
     def __init__(self, type, runmode, k):
-        # Model of different texts spam/normal email vs negative/positive review
+        # Model of different texts spam/normal email vs negative/positive review vs 8 newsgroups
         if type == 'spam_detection':
             self.type = 0
             self.classes = {'0': 0, '1': 1}
@@ -53,7 +53,6 @@ class TextNaiveBayes:
                 model_class = self.classes[doc[0]]
                 for x in doc[1:]:
                     x = x.split(':')
-
                     # Increment if in vocabulary
                     if x[0] in self.model:
                         if(self.runmode == 'multinomial'):
@@ -72,6 +71,7 @@ class TextNaiveBayes:
                     self.word_counts[model_class] += int(x[1])
                 self.doc_counts[model_class] += 1
 
+        # Calculate Likelihoods
         for word in self.model:
             for x in range(self.num_classes):
                 self.model[word][x] += self.k
@@ -80,20 +80,23 @@ class TextNaiveBayes:
                 elif(self.runmode == 'bernoulli'):
                     self.model[word][x] /= (self.doc_counts[x] + 2 * self.k)
 
+        # Get top 20 words
         for model_class in range(self.num_classes):
             top_20 = heapq.nlargest(20, self.model.items(), lambda k: k[1][model_class])
             logger.info('Top 20 words for class {0} are {1}'.
-                        format(self.class_names[model_class], [word[0] for word in top_20]))
+                        format(self.class_names[model_class], [(word[0], word[1][model_class]) for word in top_20]))
 
     def predict(self):
         correct_labels = []
         predicted_labels = []
 
+        # Perform MAP classification
         with open(DATA_DIR + self.test_file) as f:
             for line in f:
                 doc = line.split()
                 correct_labels.append(self.classes[doc[0]])
                 map_classifier = np.zeros(self.num_classes)
+                # Calculate decision function on test doc features for each class
                 for model_class in range(self.num_classes):
                     map_classifier[model_class] = np.array(
                         [math.log(float(self.doc_counts[model_class]/np.sum(self.doc_counts)))])
@@ -109,19 +112,26 @@ class TextNaiveBayes:
                                 map_classifier[model_class] += math.log(self.model[word][model_class])
                             else:
                                 map_classifier[model_class] += math.log(1. - self.model[word][model_class])
+                # Get best classified class
                 predicted_labels.append(np.argmax(map_classifier))
-                print('hello')
 
+        # Get total accuracy
         correct_labels = np.array(correct_labels)
         predicted_labels = np.array(predicted_labels)
         accuracy = calc_accuracy(correct_labels, predicted_labels)
         logger.info('NB model is {0:.2f}% accurate on the {1} data with k = {2}.'
                     .format(accuracy, self.runmode, self.k))
 
+        # Get confusion matrix with class accuracies
         cm = confusion_matrix(correct_labels, predicted_labels, self.num_classes)
+        class_accuracies = [cm[n][n] for n in range(self.num_classes)]
+        for n, x in enumerate(class_accuracies):
+            logger.info('Class {0} has an accuracy of {1:.2f}%'.format(self.class_names[n], 100 * x))
 
+        # Plot confusion matrix
         plt.figure(figsize=(30,30))
         plt.imshow(cm, cmap=plt.get_cmap('Greens'), interpolation='nearest')
+        plt.title('Confusion Matrix')
         plt.xticks(np.arange(self.num_classes), self.class_names, fontsize = 8)
         plt.yticks(np.arange(self.num_classes), self.class_names, fontsize = 10)
         plt.xlabel('Predictions')
@@ -137,10 +147,10 @@ def main():
                                                     and Jeff Zhu''')
     parser.add_argument('document_type', help='''Choose a type: spam_detection, movie_reviews, 8_newsgroups''')
     parser.add_argument('runmode', help='''Choose a runmode: multinomial, bernoulli''')
-    parser.add_argument('k_value', help='''Choose a k value for Laplacian smoothing''')
+    parser.add_argument('-k', type=int, help='''Smoothing factor''')
     args = parser.parse_args()
 
-    tnb = TextNaiveBayes(args.document_type, args.runmode, int(args.k_value))
+    tnb = TextNaiveBayes(args.document_type, args.runmode, args.k)
     tnb.train()
     tnb.predict()
 
