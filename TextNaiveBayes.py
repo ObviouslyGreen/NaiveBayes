@@ -110,6 +110,7 @@ class TextNaiveBayes:
                             else:
                                 map_classifier[model_class] += math.log(1. - self.model[word][model_class])
                 predicted_labels.append(np.argmax(map_classifier))
+                print('hello')
 
         correct_labels = np.array(correct_labels)
         predicted_labels = np.array(predicted_labels)
@@ -119,12 +120,13 @@ class TextNaiveBayes:
 
         cm = confusion_matrix(correct_labels, predicted_labels, self.num_classes)
 
-        plt.figure()
+        plt.figure(figsize=(30,30))
         plt.imshow(cm, cmap=plt.get_cmap('Greens'), interpolation='nearest')
-        plt.xticks(np.arange(1))
-        plt.yticks(np.arange(1))
+        plt.xticks(np.arange(self.num_classes), self.class_names, fontsize = 8)
+        plt.yticks(np.arange(self.num_classes), self.class_names, fontsize = 10)
         plt.xlabel('Predictions')
         plt.ylabel('Truths')
+        plt.colorbar()
         plt.show()
 
 
